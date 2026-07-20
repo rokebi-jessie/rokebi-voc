@@ -160,8 +160,7 @@
     * 이 표와 위 "요일별 평균 문의율"은 상단 "조회 범위"로 선택한 기간 전체 기준입니다. <b>그래프 단위(일/주/월) 토글과는 무관하며 바뀌지 않습니다.</b><br>
     * "문의비율" = 해당 항목 CS건수 ÷ 선택 기간 총 구매건수 (전체 문의율과 같은 방식). "전기간 대비"는 <b>건수가 아니라 이 비율의 변화(%p)</b>로 표시합니다 — 전체 볼륨이 늘면 건수는 다 같이 커 보이는 착시가 있어, 비율로 보면 실제 상대적 증감만 남습니다.<br>
     * "비중"은 대분류에만 표시합니다. 태그(29개)까지 비중을 넣으면 하나가 급증할 때 나머지 비중이 기계적으로 줄어드는 착시가 생기기 때문입니다.<br>
-    * 문의율 = 해당 기간 CS건수 ÷ 해당 기간 구매건수. 구매~문의 시차는 반영하지 않은 근사치입니다.<br>
-    * 구매건수 기준(상품군 분리 여부 등)은 확인 필요.
+    * 문의율 = 해당 기간 CS건수 ÷ 해당 기간 구매건수. 구매~문의 시차는 반영하지 않은 근사치입니다.
   </div>
 </div>
 </div><!-- /viewPeriod -->
@@ -171,7 +170,9 @@
     <span><span class="sw" style="background:rgba(226,104,95,.18)"></span>주의</span>
     <span><span class="sw" style="background:rgba(226,104,95,.38)"></span>경고</span>
     <span><span class="sw" style="background:rgba(226,104,95,.62)"></span>위험</span>
-    <span style="margin-left:auto">대분류·태그는 기준 % 자체가 다릅니다 — 정확한 수치는 아래 각 표 제목 밑에 표기</span>
+    <span style="color:var(--red);">▲</span><span style="color:var(--muted); margin-right:8px;">그 행 평균보다 높음</span>
+    <span style="color:var(--teal);">▼</span><span style="color:var(--muted);">그 행 평균보다 낮음</span>
+    <span style="margin-left:auto">대분류·태그는 기준 % 자체가 다릅니다 — 정확한 수치는 아래 각 표 제목 밑에 표기 · 0%는 "-"로 표시</span>
   </div>
 
   <div class="subtabs" style="margin-bottom:16px;">
@@ -773,7 +774,7 @@ function build(){
       const catShare = totalCS ? (catCount/totalCS*100).toFixed(1)+'%' : '-';
       const catRow = document.createElement('tr');
       catRow.className = 'cat-head';
-      catRow.innerHTML = `<td>${cat}</td><td class="num mono">${catCount.toLocaleString()}</td><td class="num mono">${catRate.toFixed(2)}%</td><td class="num mono">${catShare}</td><td class="num mono">${fmtDeltaPct(catRate, catPrevRate)}</td>`;
+      catRow.innerHTML = `<td>${cat}</td><td class="num mono">${catCount ? catCount.toLocaleString() : '-'}</td><td class="num mono">${catRate ? catRate.toFixed(2)+'%' : '-'}</td><td class="num mono">${catShare}</td><td class="num mono">${fmtDeltaPct(catRate, catPrevRate)}</td>`;
       tbody.appendChild(catRow);
       TAGS.filter(([c])=>c===cat).forEach(([,tag])=>{
         const key = cat+'|'+tag;
@@ -782,7 +783,7 @@ function build(){
         const rate = totalSales ? count/totalSales*100 : 0;
         const prevRate = prevSalesTotal ? prevCount/prevSalesTotal*100 : 0;
         const tr = document.createElement('tr');
-        tr.innerHTML = `<td class="bar-cell"><span class="bar-bg" style="width:${(count/maxCount*100).toFixed(0)}%"></span><span>${tag}</span></td><td class="num mono">${count.toLocaleString()}</td><td class="num mono">${rate.toFixed(2)}%</td><td class="num mono">-</td><td class="num mono">${fmtDeltaPct(rate, prevRate)}</td>`;
+        tr.innerHTML = `<td class="bar-cell"><span class="bar-bg" style="width:${(count/maxCount*100).toFixed(0)}%"></span><span>${tag}</span></td><td class="num mono">${count ? count.toLocaleString() : '-'}</td><td class="num mono">${rate ? rate.toFixed(2)+'%' : '-'}</td><td class="num mono">-</td><td class="num mono">${fmtDeltaPct(rate, prevRate)}</td>`;
         tbody.appendChild(tr);
       });
     });
@@ -852,6 +853,16 @@ function simpleMean(values){
   if(!arr.length) return null;
   return arr.reduce((a,b)=>a+b,0)/arr.length;
 }
+// 값이 0이면 '-'로, 아니면 절대 임계치 색상 + 그 행 평균 대비 화살표(▲평균보다 높음/▼평균보다 낮음)를 함께 표시
+function renderRateCell(rate, avg, level){
+  if(rate===0) return '<td class="na">-</td>';
+  let arrow = '';
+  if(avg!==null && avg!==undefined && avg!==0){
+    if(rate>avg) arrow = ' <span style="color:var(--red); font-size:10px;">▲</span>';
+    else if(rate<avg) arrow = ' <span style="color:var(--teal); font-size:10px;">▼</span>';
+  }
+  return `<td class="val ${heatClassAbs(rate, level)}">${rate.toFixed(2)}%${arrow}</td>`;
+}
 
 function buildFixedViews(){
   const cats = [...new Set(TAGS.map(t=>t[0]))];
@@ -883,8 +894,7 @@ function buildFixedViews(){
     const avg = simpleMean(rowRates);
     mh += `<tr><td class="rowlabel">${cat}</td><td class="ref">${avg!==null?avg.toFixed(2)+'%':'-'}</td>` + months.map((m,i)=>{
       if(rowRates[i]===null) return '<td class="na">-</td>';
-      const rate = rowRates[i];
-      return `<td class="val ${heatClassAbs(rate, 'cat')}">${rate.toFixed(2)}%</td>`;
+      return renderRateCell(rowRates[i], avg, 'cat');
     }).join('') + '</tr>';
   });
   mh += '</tbody>';
@@ -916,7 +926,7 @@ function buildFixedViews(){
 
   let wh = '<thead><tr><th rowspan="2">구분</th><th rowspan="2">평균</th>' +
     monthOrder.map(m=>`<th colspan="${monthGroups[m].length}">${m.slice(2,4)}년 ${+m.slice(5,7)}월</th>`).join('') + '</tr><tr>' +
-    monthOrder.map(m=>monthGroups[m].map((w,i)=>`<th>${i+1}주차${isWeekInProgress(w)?' (진행중)':''}</th>`).join('')).join('') + '</tr></thead><tbody>';
+    monthOrder.map(m=>monthGroups[m].map((w,i)=>`<th>${Math.ceil(mondayOfISOWeek(w).getUTCDate()/7)}주차${isWeekInProgress(w)?' (진행중)':''}</th>`).join('')).join('') + '</tr></thead><tbody>';
 
   function weekRateSeries(catCsMap){
     return weekKeys.map(w=>{
@@ -930,7 +940,11 @@ function buildFixedViews(){
     const avg = simpleMean(series);
     let row = `<tr${isTotal?' class="total-row"':''}><td class="rowlabel">${label}</td>`;
     row += `<td class="ref">${avg!==null?avg.toFixed(2)+'%':'-'}</td>`;
-    row += series.map(v=> v===null ? '<td class="na">-</td>' : `<td class="val ${isTotal?'heat-total':heatClassAbs(v, level)}">${v.toFixed(2)}%</td>`).join('');
+    row += series.map(v=>{
+      if(v===null) return '<td class="na">-</td>';
+      if(isTotal) return v===0 ? '<td class="na">-</td>' : `<td class="val heat-total">${v.toFixed(2)}%</td>`;
+      return renderRateCell(v, avg, level);
+    }).join('');
     row += '</tr>';
     return row;
   }
@@ -959,8 +973,7 @@ function buildFixedViews(){
       const avg = simpleMean(rowRates);
       mth += `<tr><td class="rowlabel">${tag}</td><td class="ref">${avg!==null?avg.toFixed(2)+'%':'-'}</td>` + months.map((m,i)=>{
         if(rowRates[i]===null) return '<td class="na">-</td>';
-        const rate = rowRates[i];
-        return `<td class="val ${heatClassAbs(rate, 'tag')}">${rate.toFixed(2)}%</td>`;
+        return renderRateCell(rowRates[i], avg, 'tag');
       }).join('') + '</tr>';
     });
   });
@@ -970,7 +983,7 @@ function buildFixedViews(){
   // 주별 태그 테이블 (평균 참고열 포함)
   let wth = '<thead><tr><th rowspan="2">대분류 / 태그</th><th rowspan="2">평균</th>' +
     monthOrder.map(m=>`<th colspan="${monthGroups[m].length}">${m.slice(2,4)}년 ${+m.slice(5,7)}월</th>`).join('') + '</tr><tr>' +
-    monthOrder.map(m=>monthGroups[m].map((w,i)=>`<th>${i+1}주차${isWeekInProgress(w)?' (진행중)':''}</th>`).join('')).join('') + '</tr></thead><tbody>';
+    monthOrder.map(m=>monthGroups[m].map((w,i)=>`<th>${Math.ceil(mondayOfISOWeek(w).getUTCDate()/7)}주차${isWeekInProgress(w)?' (진행중)':''}</th>`).join('')).join('') + '</tr></thead><tbody>';
   cats.forEach(cat=>{
     wth += `<tr class="cat-head"><td colspan="${weekKeys.length+2}">${cat}</td></tr>`;
     TAGS.filter(([c])=>c===cat).forEach(([,tag])=>{
