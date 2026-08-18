@@ -146,6 +146,25 @@
 </div>
 
 <div class="panel">
+  <h2>대분류 · 태그별 건수 (선택 기간 합계)</h2>
+  <div id="mergedTagGrid" style="display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:0 24px;"></div>
+  <div class="note">
+    * 이 표와 위 "요일별 평균 문의율"은 상단 "조회 범위"로 선택한 기간 전체 기준입니다. <b>그래프 단위(일/주/월) 토글과는 무관하며 바뀌지 않습니다.</b><br>
+    * "문의비율" = 해당 항목 CS건수 ÷ 선택 기간 총 구매건수 (전체 문의율과 같은 방식). "전기간 대비"는 <b>건수가 아니라 이 비율의 변화(%p)</b>로 표시합니다 — 전체 볼륨이 늘면 건수는 다 같이 커 보이는 착시가 있어, 비율로 보면 실제 상대적 증감만 남습니다.<br>
+    * "비중" = 해당 항목 CS건수 ÷ 선택 기간 총 CS건수. 태그까지 다 표시하면 하나가 급증할 때 나머지 비중이 기계적으로 줄어드는 착시가 생길 수 있으니 참고만 해주세요.<br>
+    * 문의율 = 해당 기간 CS건수 ÷ 해당 기간 구매건수. 구매~문의 시차는 반영하지 않은 근사치입니다.
+  </div>
+</div>
+
+<div class="panel">
+  <h2>태그별 순위 (건수 기준, 선택 기간 합계)</h2>
+  <div style="position:relative; height:520px;"><canvas id="tagRankChart"></canvas></div>
+  <div class="note">건수 많은 순으로 정렬했습니다. 막대 위에 마우스를 올리면 <b>비중</b>(전체 CS건수 대비 %)도 같이 보입니다.</div>
+  <div class="note" style="margin-top:10px;">차트는 그림(canvas)이라 Ctrl+F 검색이 안되므로, 검색하시려면 아래 텍스트 목록을 이용해주세요.</div>
+  <div id="tagRankTextList" style="margin-top:6px; font-size:12px; line-height:1.9; color:var(--muted); column-count:3; column-gap:24px;"></div>
+</div>
+
+<div class="panel">
   <h2>통계 요약 <span class="badge">선택 기간 기준 자동 계산</span></h2>
   <div id="insightBody"></div>
   <div class="note">* 여기 표시되는 건 통계적 계산(추세·요일 패턴)입니다. "왜 그런지"에 대한 해석은 자동화되지 않으니 필요하면 별도로 분석 요청해주세요. 표본이 적으면(대략 3주 미만) 추세 신뢰도가 낮게 나올 수 있습니다.</div>
@@ -154,17 +173,6 @@
 <div class="panel">
   <h2>대분류별 세부 태그 문의율 추이 (구매 대비 %, 같은 기간/단위 기준)</h2>
   <div class="cat-charts-grid" id="catChartsGrid" style="display:grid; grid-template-columns:repeat(auto-fit,minmax(460px,1fr)); gap:14px;"></div>
-</div>
-
-<div class="panel">
-  <h2>대분류 · 태그별 건수 (선택 기간 합계)</h2>
-  <div id="mergedTagGrid" style="display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:0 24px;"></div>
-  <div class="note">
-    * 이 표와 위 "요일별 평균 문의율"은 상단 "조회 범위"로 선택한 기간 전체 기준입니다. <b>그래프 단위(일/주/월) 토글과는 무관하며 바뀌지 않습니다.</b><br>
-    * "문의비율" = 해당 항목 CS건수 ÷ 선택 기간 총 구매건수 (전체 문의율과 같은 방식). "전기간 대비"는 <b>건수가 아니라 이 비율의 변화(%p)</b>로 표시합니다 — 전체 볼륨이 늘면 건수는 다 같이 커 보이는 착시가 있어, 비율로 보면 실제 상대적 증감만 남습니다.<br>
-    * "비중"은 대분류에만 표시합니다. 태그(29개)까지 비중을 넣으면 하나가 급증할 때 나머지 비중이 기계적으로 줄어드는 착시가 생기기 때문입니다.<br>
-    * 문의율 = 해당 기간 CS건수 ÷ 해당 기간 구매건수. 구매~문의 시차는 반영하지 않은 근사치입니다.
-  </div>
 </div>
 </div><!-- /viewPeriod -->
 
@@ -661,6 +669,50 @@ function buildInsights(filteredDaily, filteredSales, cats, periodStats){
   el.innerHTML = html;
 }
 
+let _tagRankChart = null;
+function buildTagRankChart(tagAgg, totalCS, cats){
+  const rows = TAGS.filter(([c,t])=>cats.includes(c) && t!==EXCLUDE_FROM_RATE_TAG).map(([cat,tag])=>{
+    const count = tagAgg[cat+'|'+tag]||0;
+    const share = totalCS ? count/totalCS*100 : 0;
+    return {cat, tag, count, share};
+  }).sort((a,b)=>b.count-a.count);
+
+  const catColorMap = {};
+  [...new Set(TAGS.map(t=>t[0]))].forEach((c,i)=>{ catColorMap[c] = PALETTE[i%PALETTE.length]; });
+
+  if(_tagRankChart) _tagRankChart.destroy();
+  const ctx = document.getElementById('tagRankChart').getContext('2d');
+  _tagRankChart = new Chart(ctx, {
+    type:'bar',
+    data:{
+      labels: rows.map(r=>`${tagLabel(r.tag)} (${r.cat})`),
+      datasets:[{
+        label:'건수',
+        data: rows.map(r=>r.count),
+        backgroundColor: rows.map(r=>catColorMap[r.cat]),
+        borderRadius:3
+      }]
+    },
+    options:{
+      indexAxis:'y',
+      responsive:true, maintainAspectRatio:false,
+      plugins:{
+        legend:{display:false},
+        tooltip:{callbacks:{
+          label:(c)=>{ const r = rows[c.dataIndex]; return [`건수: ${r.count.toLocaleString()}`, `비중: ${r.share.toFixed(2)}%`]; }
+        }}
+      },
+      scales:{
+        x:{beginAtZero:true, grid:{color:'#2a3241'}, ticks:{color:'#8892a0'}},
+        y:{grid:{display:false}, ticks:{color:'#8892a0', font:{size:10}}}
+      }
+    }
+  });
+
+  const listEl = document.getElementById('tagRankTextList');
+  listEl.innerHTML = rows.map((r,i)=> `<div style="break-inside:avoid;">${i+1}. <b style="color:${catColorMap[r.cat]}">${tagLabel(r.tag)}</b> (${r.cat}) — ${r.count.toLocaleString()}건 · ${r.share.toFixed(2)}%</div>`).join('');
+}
+
 function build(){
   const catFilter = document.getElementById('catFilter').value;
   const filteredDaily = DAILY.filter(r => inRange(r.date) && (catFilter==='all'||r.cat===catFilter));
@@ -785,6 +837,7 @@ function build(){
   const cats = [...new Set(TAGS.map(t=>t[0]))].filter(c=> catFilter==='all'||c===catFilter);
   buildCategoryCharts(filteredDaily, cats, salesMap);
   buildInsights(filteredDaily, filteredSales, cats, {rate, prevRate, realRate, prevRealRate, totalSales, prevSalesTotal, catAgg:catAggReal, catAggPrev:catAggPrevReal});
+  buildTagRankChart(tagAgg, totalCS, cats);
 
   function fmtDeltaPct(curRate, prevRate){
     if(!prevSalesTotal || !totalSales) return '<span style="color:#8892a0">-</span>';
@@ -813,7 +866,7 @@ function build(){
       const catShare = totalCS ? (catCount/totalCS*100).toFixed(1)+'%' : '-';
       const catRow = document.createElement('tr');
       catRow.className = 'cat-head';
-      catRow.innerHTML = `<td>${cat}</td><td class="num mono">${catCount ? catCount.toLocaleString() : '-'}</td><td class="num mono">${catRate ? catRate.toFixed(2)+'%' : '-'}</td><td class="num mono">${catShare}</td><td class="num mono">${fmtDeltaPct(catRate, catPrevRate)}</td>`;
+      catRow.innerHTML = `<td>${cat}</td><td class="num mono">${catCount ? catCount.toLocaleString() : '-'}</td><td class="num mono">${catRate ? catRate.toFixed(2)+'%' : '-'}</td><td class="num mono" style="color:var(--amber);">${catShare}</td><td class="num mono">${fmtDeltaPct(catRate, catPrevRate)}</td>`;
       tbody.appendChild(catRow);
       TAGS.filter(([c])=>c===cat).forEach(([,tag])=>{
         const key = cat+'|'+tag;
@@ -821,8 +874,9 @@ function build(){
         const prevCount = tagAggPrev[key]||0;
         const rate = totalSales ? count/totalSales*100 : 0;
         const prevRate = prevSalesTotal ? prevCount/prevSalesTotal*100 : 0;
+        const tagShare = totalCS ? (count/totalCS*100).toFixed(1)+'%' : '-';
         const tr = document.createElement('tr');
-        tr.innerHTML = `<td class="bar-cell"><span class="bar-bg" style="width:${(count/maxCount*100).toFixed(0)}%"></span><span>${tagLabel(tag)}</span></td><td class="num mono">${count ? count.toLocaleString() : '-'}</td><td class="num mono">${rate ? rate.toFixed(2)+'%' : '-'}</td><td class="num mono">-</td><td class="num mono">${fmtDeltaPct(rate, prevRate)}</td>`;
+        tr.innerHTML = `<td class="bar-cell"><span class="bar-bg" style="width:${(count/maxCount*100).toFixed(0)}%"></span><span>${tagLabel(tag)}</span></td><td class="num mono">${count ? count.toLocaleString() : '-'}</td><td class="num mono">${rate ? rate.toFixed(2)+'%' : '-'}</td><td class="num mono" style="color:#fff;">${count ? tagShare : '-'}</td><td class="num mono">${fmtDeltaPct(rate, prevRate)}</td>`;
         tbody.appendChild(tr);
       });
     });
