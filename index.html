@@ -855,8 +855,8 @@ function build(){
   COLUMN_GROUPS.forEach(group=>{
     const table = document.createElement('table');
     table.style.tableLayout = 'fixed';
-    table.innerHTML = `<colgroup><col><col style="width:64px"><col style="width:66px"><col style="width:56px"><col style="width:78px"></colgroup>
-      <thead><tr><th>대분류 / 태그</th><th class="num">건수</th><th class="num">문의비율</th><th class="num">비중</th><th class="num">전기간 대비</th></tr></thead>`;
+    table.innerHTML = `<colgroup><col><col style="width:64px"><col style="width:60px"><col style="width:66px"><col style="width:56px"><col style="width:78px"></colgroup>
+      <thead><tr><th>대분류 / 태그</th><th class="num">건수</th><th class="num">일평균</th><th class="num">문의비율</th><th class="num">비중</th><th class="num">전기간 대비</th></tr></thead>`;
     const tbody = document.createElement('tbody');
     group.forEach(cat=>{
       const catCount = catAgg[cat]||0;
@@ -864,9 +864,10 @@ function build(){
       const catRate = totalSales ? catCount/totalSales*100 : 0;
       const catPrevRate = prevSalesTotal ? catPrevCount/prevSalesTotal*100 : 0;
       const catShare = totalCS ? (catCount/totalCS*100).toFixed(1)+'%' : '-';
+      const catAvg = dayCount ? Math.round(catCount/dayCount).toLocaleString() : '-';
       const catRow = document.createElement('tr');
       catRow.className = 'cat-head';
-      catRow.innerHTML = `<td>${cat}</td><td class="num mono">${catCount ? catCount.toLocaleString() : '-'}</td><td class="num mono">${catRate ? catRate.toFixed(2)+'%' : '-'}</td><td class="num mono" style="color:var(--amber);">${catShare}</td><td class="num mono">${fmtDeltaPct(catRate, catPrevRate)}</td>`;
+      catRow.innerHTML = `<td>${cat}</td><td class="num mono">${catCount ? catCount.toLocaleString() : '-'}</td><td class="num mono">${catCount ? catAvg : '-'}</td><td class="num mono">${catRate ? catRate.toFixed(2)+'%' : '-'}</td><td class="num mono" style="color:var(--amber);">${catShare}</td><td class="num mono">${fmtDeltaPct(catRate, catPrevRate)}</td>`;
       tbody.appendChild(catRow);
       TAGS.filter(([c])=>c===cat).forEach(([,tag])=>{
         const key = cat+'|'+tag;
@@ -875,8 +876,9 @@ function build(){
         const rate = totalSales ? count/totalSales*100 : 0;
         const prevRate = prevSalesTotal ? prevCount/prevSalesTotal*100 : 0;
         const tagShare = totalCS ? (count/totalCS*100).toFixed(1)+'%' : '-';
+        const tagAvg = dayCount ? Math.round(count/dayCount).toLocaleString() : '-';
         const tr = document.createElement('tr');
-        tr.innerHTML = `<td class="bar-cell"><span class="bar-bg" style="width:${(count/maxCount*100).toFixed(0)}%"></span><span>${tagLabel(tag)}</span></td><td class="num mono">${count ? count.toLocaleString() : '-'}</td><td class="num mono">${rate ? rate.toFixed(2)+'%' : '-'}</td><td class="num mono" style="color:#fff;">${count ? tagShare : '-'}</td><td class="num mono">${fmtDeltaPct(rate, prevRate)}</td>`;
+        tr.innerHTML = `<td class="bar-cell"><span class="bar-bg" style="width:${(count/maxCount*100).toFixed(0)}%"></span><span>${tagLabel(tag)}</span></td><td class="num mono">${count ? count.toLocaleString() : '-'}</td><td class="num mono">${count ? tagAvg : '-'}</td><td class="num mono">${rate ? rate.toFixed(2)+'%' : '-'}</td><td class="num mono" style="color:#fff;">${count ? tagShare : '-'}</td><td class="num mono">${fmtDeltaPct(rate, prevRate)}</td>`;
         tbody.appendChild(tr);
       });
     });
